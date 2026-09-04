@@ -1,26 +1,35 @@
-# reader 3
+# reader3
 
-![reader3](reader3.png)
+A fork of [karpathy/reader3](https://github.com/karpathy/reader3), turned into the local reading tool I actually wanted: an EPUB reader that runs on my machine, keeps my notes next to the book, and can read chapters aloud.
 
-A lightweight, self-hosted EPUB reader that lets you read through EPUB books one chapter at a time. This makes it very easy to copy paste the contents of a chapter to an LLM, to read along. Basically - get epub books (e.g. [Project Gutenberg](https://www.gutenberg.org/) has many), open them up in this reader, copy paste text around to your favorite LLM, and read together and along.
+Everything stays local. No accounts, no cloud, no network calls once the server is up.
 
-This project was 90% vibe coded just to illustrate how one can very easily [read books together with LLMs](https://x.com/karpathy/status/1990577951671509438). I'm not going to support it in any way, it's provided here as is for other people's inspiration and I don't intend to improve it. Code is ephemeral now and libraries are over, ask your LLM to change it in whatever way you like.
+## What's added
+
+**Book notes.** A side panel per book that autosaves as you type. Notes live in a plain `notes.txt` inside the book's data folder, so they're easy to grep, back up, or paste into an LLM.
+
+![notes panel](screenshots/notes.png)
+
+**Dark mode.** Follows the system preference by default, with a toggle that persists.
+
+![dark mode](screenshots/dark-mode.png)
+
+**Listen.** Text to speech using the voices already on the machine, through the browser's Web Speech API. The current paragraph is highlighted and kept centered as it's read, so you can follow along or just let it run. Pick any installed voice and a speed; both are remembered.
+
+![listen](screenshots/listen.png)
+
+On macOS the better voices are a download away: System Settings, Accessibility, Spoken Content, System Voice, Manage Voices. Enhanced and Premium voices show up in the picker on reload.
 
 ## Usage
 
-The project uses [uv](https://docs.astral.sh/uv/). So for example, download [Dracula EPUB3](https://www.gutenberg.org/ebooks/345) to this directory as `dracula.epub`, then:
+Requires [uv](https://docs.astral.sh/uv/). Drop an EPUB in the directory (e.g. [Dracula](https://www.gutenberg.org/ebooks/345) from Project Gutenberg), then:
 
 ```bash
-uv run reader3.py dracula.epub
+uv run reader3.py dracula.epub   # creates dracula_data/, registers the book
+uv run server.py                 # http://localhost:8123
 ```
 
-This creates the directory `dracula_data`, which registers the book to your local library. We can then run the server:
-
-```bash
-uv run server.py
-```
-
-And visit [localhost:8123](http://localhost:8123/) to see your current Library. You can easily add more books, or delete them from your library by deleting the folder. It's not supposed to be complicated or complex.
+Delete a book's `_data` folder to remove it from the library.
 
 ## License
 
