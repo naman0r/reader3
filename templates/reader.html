@@ -91,6 +91,12 @@
         #notes-text { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); padding: 14px; font-family: -apple-system, sans-serif; font-size: 0.95em; line-height: 1.6; outline: none; }
         #notes-text:focus { border-color: var(--accent); }
         #notes-text::placeholder { color: var(--muted); }
+        /* Listen (TTS) controls */
+        .tts-bar { display: flex; gap: 6px; margin-bottom: 20px; font-family: -apple-system, sans-serif; font-size: 0.85em; }
+        .tts-bar select { flex: 1; min-width: 0; background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--header-text); font-size: inherit; }
+        /* outline rather than background: dark mode forces background transparent on book content */
+        .book-content .speaking { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
+
         .notes-status { margin-top: 10px; min-height: 1em; text-align: right; font-family: -apple-system, sans-serif; font-size: 0.8em; color: var(--muted); }
 
     </style>
@@ -108,6 +114,14 @@
         <a href="/" class="nav-home">← Back to Library</a>
         <button id="theme-toggle" class="theme-btn">Dark mode</button>
         <button id="notes-toggle" class="theme-btn">Book notes</button>
+        <button id="tts-toggle" class="theme-btn" style="margin-bottom: 6px">Listen</button>
+        <div class="tts-bar">
+            <select id="tts-voice" title="Voice"></select>
+            <select id="tts-rate" title="Speed">
+                <option value="0.8">0.8x</option><option value="1">1x</option><option value="1.2">1.2x</option>
+                <option value="1.4">1.4x</option><option value="1.6">1.6x</option><option value="2">2x</option>
+            </select>
+        </div>
         <div class="nav-header">{{ book.metadata.title }}</div>
 
         <!-- Recursive Macro for TOC -->
@@ -236,6 +250,60 @@
             syncThemeLabel();
         };
         syncThemeLabel();
+
+        // Listen: read the chapter aloud with the OS's local voices (Web Speech API), one
+        // utterance per block so the current block can be highlighted and scrolled into view.
+        // Per-block utterances also sidestep Chrome silently truncating long utterances.
+        const ttsBtn = document.getElementById("tts-toggle");
+        const ttsVoice = document.getElementById("tts-voice");
+        const ttsRate = document.getElementById("tts-rate");
+        const blocks = [...document.querySelectorAll(".book-content :is(p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, dt, dd)")]
+            .filter(el => el.innerText.trim() && !el.querySelector("p, li, blockquote, pre"));
+        let ttsIndex = -1;
+
+        const populateVoices = () => {
+            const lang = document.documentElement.lang || "en";
+            const voices = speechSynthesis.getVoices().filter(v => v.localService && v.lang.startsWith(lang));
+            if (!voices.length) return;
+            const saved = localStorage.getItem("tts-voice") || "Samantha";
+            ttsVoice.innerHTML = voices.map(v => `<option ${v.name === saved ? "selected" : ""}>${v.name}</option>`).join("");
+        };
+        populateVoices();
+        speechSynthesis.onvoiceschanged = populateVoices;
+        ttsRate.value = localStorage.getItem("tts-rate") || "1";
+        ttsVoice.onchange = () => localStorage.setItem("tts-voice", ttsVoice.value);
+        ttsRate.onchange = () => localStorage.setItem("tts-rate", ttsRate.value);
+
+        const stopTts = () => {
+            speechSynthesis.cancel();
+            blocks[ttsIndex]?.classList.remove("speaking");
+            ttsIndex = -1;
+            ttsBtn.textContent = "Listen";
+        };
+        const speakBlock = (i) => {
+            blocks[ttsIndex]?.classList.remove("speaking");
+            if (i >= blocks.length) return stopTts();
+            ttsIndex = i;
+            const el = blocks[i];
+            const u = new SpeechSynthesisUtterance(el.innerText);
+            u.voice = speechSynthesis.getVoices().find(v => v.name === ttsVoice.value) || null;
+            u.rate = +ttsRate.value;
+            u.onstart = () => {
+                el.classList.add("speaking");
+                el.scrollIntoView({ block: "center", behavior: "smooth" });
+            };
+            u.onend = () => { if (ttsIndex === i) speakBlock(i + 1); };
+            speechSynthesis.speak(u);
+        };
+        ttsBtn.onclick = () => {
+            if (ttsIndex >= 0) return stopTts();
+            // Start from the first block currently on screen rather than the top of the chapter
+            const start = blocks.findIndex(el => el.getBoundingClientRect().bottom > 0);
+            ttsBtn.textContent = "Stop";
+            speakBlock(Math.max(start, 0));
+        };
+        // Chrome keeps speaking after navigation otherwise
+        addEventListener("beforeunload", () => speechSynthesis.cancel());
 
         // Book notes panel, autosaved (debounced) per book via the server
         const notesPanel = document.getElementById("notes-panel");
