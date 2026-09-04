@@ -95,6 +95,8 @@
         .tts-bar { display: flex; gap: 6px; margin-bottom: 20px; font-family: -apple-system, sans-serif; font-size: 0.85em; }
         .tts-bar select { flex: 1; min-width: 0; background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--header-text); font-size: inherit; }
         /* outline rather than background: dark mode forces background transparent on book content */
+        #tts-menu { display: none; position: fixed; z-index: 30; padding: 6px 12px; background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--header-text); font-family: -apple-system, sans-serif; font-size: 0.85em; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        #tts-menu:hover { border-color: var(--accent); color: var(--accent); }
         .book-content .speaking { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
 
         .notes-status { margin-top: 10px; min-height: 1em; text-align: right; font-family: -apple-system, sans-serif; font-size: 0.8em; color: var(--muted); }
@@ -114,7 +116,7 @@
         <a href="/" class="nav-home">← Back to Library</a>
         <button id="theme-toggle" class="theme-btn">Dark mode</button>
         <button id="notes-toggle" class="theme-btn">Book notes</button>
-        <button id="tts-toggle" class="theme-btn" style="margin-bottom: 6px">Listen</button>
+        <button id="tts-toggle" class="theme-btn" style="margin-bottom: 6px" title="Or right-click any paragraph to listen from there">Listen</button>
         <div class="tts-bar">
             <select id="tts-voice" title="Voice"></select>
             <select id="tts-rate" title="Speed">
@@ -200,6 +202,8 @@
         </div>
     </div>
 
+    <button id="tts-menu">Listen from here</button>
+
     <!-- NOTES PANEL -->
     <div id="notes-panel">
         <div class="notes-header">
@@ -260,6 +264,7 @@
         const blocks = [...document.querySelectorAll(".book-content :is(p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, dt, dd)")]
             .filter(el => el.innerText.trim() && !el.querySelector("p, li, blockquote, pre"));
         let ttsIndex = -1;
+        let current = null; // utterance in flight, so a cancelled one can't advance playback
 
         const populateVoices = () => {
             const lang = document.documentElement.lang || "en";
@@ -278,6 +283,7 @@
             speechSynthesis.cancel();
             blocks[ttsIndex]?.classList.remove("speaking");
             ttsIndex = -1;
+            current = null;
             ttsBtn.textContent = "Listen";
         };
         const speakBlock = (i) => {
@@ -292,7 +298,9 @@
                 el.classList.add("speaking");
                 el.scrollIntoView({ block: "center", behavior: "smooth" });
             };
-            u.onend = () => { if (ttsIndex === i) speakBlock(i + 1); };
+            u.onend = () => { if (current === u) speakBlock(i + 1); };
+            current = u;
+            speechSynthesis.cancel();
             speechSynthesis.speak(u);
         };
         ttsBtn.onclick = () => {
@@ -302,6 +310,19 @@
             ttsBtn.textContent = "Stop";
             speakBlock(Math.max(start, 0));
         };
+        // Right-click a paragraph for "Listen from here". With text selected the native menu is kept so Copy still works.
+        const ttsMenu = document.getElementById("tts-menu");
+        const hideTtsMenu = () => ttsMenu.style.display = "none";
+        blocks.forEach((el, i) => el.addEventListener("contextmenu", (e) => {
+            if (getSelection().toString()) return;
+            e.preventDefault();
+            ttsMenu.style.left = e.clientX + "px";
+            ttsMenu.style.top = e.clientY + "px";
+            ttsMenu.style.display = "block";
+            ttsMenu.onclick = () => { ttsBtn.textContent = "Stop"; speakBlock(i); };
+        }));
+        addEventListener("click", hideTtsMenu);
+        addEventListener("wheel", hideTtsMenu);
         // Chrome keeps speaking after navigation otherwise
         addEventListener("beforeunload", () => speechSynthesis.cancel());
 
