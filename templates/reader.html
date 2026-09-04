@@ -77,6 +77,22 @@
         .nav-btn:hover { background: var(--accent); color: white; }
         .nav-btn.disabled { opacity: 0.5; pointer-events: none; border-color: var(--disabled); color: var(--disabled); }
 
+        /* Notes Panel */
+        #notes-panel { width: 420px; flex-shrink: 0; height: 100vh; margin-right: -421px; visibility: hidden; transition: margin-right 0.25s ease, visibility 0s linear 0.25s; background: var(--sidebar-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px; box-sizing: border-box; overflow: hidden; }
+        #notes-panel.open { margin-right: 0; visibility: visible; transition: margin-right 0.25s ease, visibility 0s linear 0s; }
+        @media (max-width: 1100px) {
+            /* Too narrow for side-by-side: slide over the content instead */
+            #notes-panel { position: fixed; top: 0; right: 0; z-index: 20; width: 90vw; max-width: 420px; box-shadow: -8px 0 24px rgba(0,0,0,0.15); margin-right: 0; transform: translateX(105%); transition: transform 0.25s ease, visibility 0s linear 0.25s; }
+            #notes-panel.open { transform: translateX(0); transition: transform 0.25s ease, visibility 0s linear 0s; }
+        }
+        .notes-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-family: -apple-system, sans-serif; font-weight: bold; color: var(--header-text); }
+        .notes-close { background: none; border: none; color: var(--muted); font-size: 1.4em; line-height: 1; padding: 0 4px; cursor: pointer; }
+        .notes-close:hover { color: var(--text); }
+        #notes-text { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); padding: 14px; font-family: -apple-system, sans-serif; font-size: 0.95em; line-height: 1.6; outline: none; }
+        #notes-text:focus { border-color: var(--accent); }
+        #notes-text::placeholder { color: var(--muted); }
+        .notes-status { margin-top: 10px; min-height: 1em; text-align: right; font-family: -apple-system, sans-serif; font-size: 0.8em; color: var(--muted); }
+
     </style>
     <script>
         // Applied before paint to avoid a flash of the light theme
@@ -91,6 +107,7 @@
     <div id="sidebar">
         <a href="/" class="nav-home">← Back to Library</a>
         <button id="theme-toggle" class="theme-btn">Dark mode</button>
+        <button id="notes-toggle" class="theme-btn">Book notes</button>
         <div class="nav-header">{{ book.metadata.title }}</div>
 
         <!-- Recursive Macro for TOC -->
@@ -169,6 +186,16 @@
         </div>
     </div>
 
+    <!-- NOTES PANEL -->
+    <div id="notes-panel">
+        <div class="notes-header">
+            <span>Book Notes</span>
+            <button id="notes-close" class="notes-close" title="Close">&times;</button>
+        </div>
+        <textarea id="notes-text" placeholder="Notes on this book..."></textarea>
+        <div class="notes-status" id="notes-status"></div>
+    </div>
+
     <script>
         // Helper to map TOC filenames to Spine Indices
         // Pass the spine data from python to JS
@@ -209,6 +236,37 @@
             syncThemeLabel();
         };
         syncThemeLabel();
+
+        // Book notes panel, autosaved (debounced) per book via the server
+        const notesPanel = document.getElementById("notes-panel");
+        const notesText = document.getElementById("notes-text");
+        const notesStatus = document.getElementById("notes-status");
+        let notesSaveTimer = null;
+
+        document.getElementById("notes-toggle").onclick = () => notesPanel.classList.toggle("open");
+        document.getElementById("notes-close").onclick = () => notesPanel.classList.remove("open");
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") notesPanel.classList.remove("open");
+        });
+
+        fetch("/notes/{{ book_id }}")
+            .then(r => r.json())
+            .then(d => notesText.value = d.text);
+
+        notesText.addEventListener("input", () => {
+            notesStatus.textContent = "Saving...";
+            clearTimeout(notesSaveTimer);
+            notesSaveTimer = setTimeout(() => {
+                fetch("/notes/{{ book_id }}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: notesText.value })
+                }).then(() => {
+                    notesStatus.textContent = "Saved";
+                    setTimeout(() => notesStatus.textContent = "", 1500);
+                });
+            }, 500);
+        });
     </script>
 </body>
 </html>

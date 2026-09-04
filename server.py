@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from reader3 import Book, BookMetadata, ChapterContent, TOCEntry
 
@@ -103,6 +104,27 @@ async def serve_image(book_id: str, image_name: str):
         raise HTTPException(status_code=404, detail="Image not found")
 
     return FileResponse(img_path)
+
+class NotesBody(BaseModel):
+    text: str
+
+@app.get("/notes/{book_id}")
+async def get_notes(book_id: str):
+    """Free-form notes for the whole book, stored alongside its data folder."""
+    notes_path = os.path.join(BOOKS_DIR, os.path.basename(book_id), "notes.txt")
+    if not os.path.exists(notes_path):
+        return {"text": ""}
+    with open(notes_path, "r", encoding="utf-8") as f:
+        return {"text": f.read()}
+
+@app.post("/notes/{book_id}")
+async def save_notes(book_id: str, body: NotesBody):
+    book_dir = os.path.join(BOOKS_DIR, os.path.basename(book_id))
+    if not os.path.isdir(book_dir):
+        raise HTTPException(status_code=404, detail="Book not found")
+    with open(os.path.join(book_dir, "notes.txt"), "w", encoding="utf-8") as f:
+        f.write(body.text)
+    return {"ok": True}
 
 if __name__ == "__main__":
     import uvicorn
