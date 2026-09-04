@@ -1,6 +1,6 @@
 # reader3
 
-A fork of [karpathy/reader3](https://github.com/karpathy/reader3), turned into the local reading tool I actually wanted: an EPUB reader that runs on my machine, keeps my notes next to the book, and can read chapters aloud.
+A fork of [karpathy/reader3](https://github.com/karpathy/reader3), customized for some use cases I specifically wanted
 
 Everything stays local. No accounts, no cloud, no network calls once the server is up.
 
